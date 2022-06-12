@@ -36,7 +36,7 @@
        and preprocess2 pipelines.       
        ======================================================= -->
   
-  <xsl:param name="as-delivered-map-dir" as="xs:string" select="'as-delivered-maps'"/>
+  <xsl:param name="as-delivered-map-dir" as="xs:string" select="'../as-delivered-maps'"/>
   
   <xsl:import href="plugin:org.dita-community.common.xslt:xsl/relpath_util.xsl"/>
   <xsl:import href="plugin:org.dita-community.common.xslt:xsl/dita-support-lib.xsl"/>   
@@ -67,6 +67,9 @@
     
     <xsl:choose>
       <xsl:when test="$do-augmentation">
+        <xsl:if test="$doDebug">
+          <xsl:message>xdlink:    Doing augmentation</xsl:message>
+        </xsl:if>
         <xsl:variable name="augmented-map" as="document-node()">
           <xsl:document>
             <xsl:sequence select="preceding::node()"/>
@@ -90,12 +93,14 @@
           </xsl:result-document>
         </xsl:if>
         
-        <xsl:apply-templates select="$augmented-map" mode="#default">
+        <xsl:apply-templates select="$augmented-map" mode="xdlink:augment-map">
           <xsl:with-param name="do-augmentation" as="xs:boolean" select="false()"/>
         </xsl:apply-templates>
       </xsl:when>
       <xsl:otherwise>
-        <xsl:next-match/>
+        <xsl:apply-templates select="." mode="#default">
+          <xsl:with-param name="do-augmentation" as="xs:boolean" select="false()"/>
+        </xsl:apply-templates>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:template>
@@ -115,15 +120,73 @@
     
     <!-- Generate the map reference to the as-delivered map, which is just a normal 
          submap reference.
+         
+         Putting the mapref in a topicgroup to ensure that the key scope is preserved.
+         There seems to be a bug in 3.7.2 that does not preserve the key scope
+         when the mapref is resolved.
       -->
-    <mapref class="- map/map mapgroup-d/mapref " format="ditamap" 
-      href="{$as-delivered-map-uri}"
-    >
+    <topicgroup class="- map/topicref mapgroup-d/topicgroup ">
       <xsl:sequence select="@keyscope"/>
-    </mapref>
-    <!-- Now put out the original map reference -->
-    <xsl:sequence select="."/>
+      <mapref class="- map/topicref mapgroup-d/mapref " format="ditamap" 
+        href="{$as-delivered-map-uri}"
+      >      
+        <xsl:sequence select="@xtrf, @xtrc"/>
+      </mapref>
+    </topicgroup>
+    <!-- Do not put out the original map reference because that map should not be available in the current processing
+         environment.
+      -->
+      
     
+  </xsl:template>
+
+  <!-- Override: Construct result URI using resolve-uri() -->
+  <xsl:template match="*[contains(@class,' map/topicref ')]" mode="mapref">
+    <xsl:param name="relative-path" as="xs:string">#none#</xsl:param>
+    <xsl:param name="mapref-id-path" as="xs:string*"/>
+    <xsl:variable name="linking" as="xs:string?">
+      <xsl:choose>
+        <xsl:when test="empty(@linking)">
+          <xsl:call-template name="inherit">
+            <xsl:with-param name="attrib">linking</xsl:with-param>
+          </xsl:call-template>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:value-of select="@linking"/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:variable>
+    <xsl:choose>
+      <xsl:when test="generate-id(.) = $mapref-id-path">
+        <xsl:call-template name="output-message">
+          <xsl:with-param name="id" select="'DOTX053E'"/>
+          <xsl:with-param name="msgparams">%1=<xsl:value-of select="@href"/></xsl:with-param>
+        </xsl:call-template>
+      </xsl:when>
+      <xsl:when test="not($linking='none') and @href and not(contains(@href,'#')) and not(@scope = 'peer')">
+        <xsl:variable name="update-id-path" select="($mapref-id-path, generate-id(.))"/>
+        <xsl:variable name="href" select="resolve-uri(@href, base-uri(.))" as="xs:string?"/>
+        <xsl:apply-templates select="document($href)/*[contains(@class,' map/map ')]" mode="#current">
+          <xsl:with-param name="parentMaprefKeyscope" select="@keyscope" tunnel="yes"/>
+          <xsl:with-param name="relative-path">
+            <xsl:choose>
+              <xsl:when test="not($relative-path = '#none#' or $relative-path='')">
+                <xsl:value-of select="$relative-path"/>
+                <xsl:call-template name="find-relative-path">
+                  <xsl:with-param name="remainingpath" select="@href"/>
+                </xsl:call-template>
+              </xsl:when>
+              <xsl:otherwise>
+                <xsl:call-template name="find-relative-path">
+                  <xsl:with-param name="remainingpath" select="@href"/>
+                </xsl:call-template>
+              </xsl:otherwise>
+            </xsl:choose>
+          </xsl:with-param>
+          <xsl:with-param name="mapref-id-path" select="$update-id-path"/>
+        </xsl:apply-templates>
+      </xsl:when>
+    </xsl:choose>
   </xsl:template>
   
   <!--
