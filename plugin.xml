@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-model href="dita-ot/plugin.rnc" type="application/relax-ng-compact-syntax"?>
+<!--
+  Plugin descriptor for the DITA Community cross-deliverable linking base implementation. 
+
+  Copyright (c) 2022 DITA Community
+  
+  Implements delivery-format-independent processing for rendering content that
+  uses cross-deliverable (root-map to root-map) key references.
+  
+  -->
+<plugin id="org.dita-community.crossdeliverable.base">
+  <feature extension="package.support.name" value="Eliot Kimber"/>
+  <feature extension="package.support.email" value="ekimber@contrext.com"/>
+
+  <require plugin="org.dita.base"/>
+  <require plugin="org.dita-community.common.xslt"/>
+  
+  <feature extension="dita.xsl.mapref" file="xsl/maprefImpl.xsl"/>
+
+</plugin>
